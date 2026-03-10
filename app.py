@@ -3,7 +3,8 @@ import json
 import tempfile
 import base64
 import requests
-import google.generativeai as genai
+# NEW
+from google import genai
 from flask import Flask, request
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
@@ -15,8 +16,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_KEY_HERE")
 NTFY_TOPIC     = os.environ.get("NTFY_TOPIC", "https://ntfy.sh/john-college-mail")
 # ----------------
 
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-1.5-flash")
+client = genai.Client(api_key=GEMINI_API_KEY)
 app = Flask(__name__)
 
 def get_gmail_service():
@@ -71,7 +71,10 @@ IMPORTANT: yes/no
 CATEGORY: Academic / Deadline / Admin / Event / Newsletter / Spam / Social
 REASON: one sentence max"""
 
-    response = model.generate_content(prompt)
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt
+    )
     return response.text.strip()
 
 def parse_classification(text):
