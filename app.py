@@ -107,13 +107,12 @@ def gmail_webhook():
     try:
         envelope = request.get_json()
         print(f"📨 Envelope received: {envelope}", flush=True)
-        service = get_gmail_service()
+        service = get_gmail_service()                    # ← DELETE this line
         print("✅ Gmail service created", flush=True)
         if not envelope or 'message' not in envelope:
             return 'bad request', 400
 
-        service = get_gmail_service()
-
+        service = get_gmail_service()                    # ← keep only this one
         results = service.users().messages().list(
             userId='me', q='is:unread', maxResults=3
         ).execute()
