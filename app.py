@@ -11,9 +11,10 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
 # ---- CONFIG ----
-NTFY_TOPIC   = os.environ.get("NTFY_TOPIC", "https://ntfy.sh/gmail_alerts")
-groq_client  = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-app          = Flask(__name__)
+NTFY_TOPIC  = "https://ntfy.sh/gmail_alerts"  # hardcoded
+groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+app         = Flask(__name__)
+processed_ids = set()
 # ----------------
 
 def get_gmail_service():
@@ -81,6 +82,8 @@ Mark IMPORTANT: no for EVERYTHING else including:
 - Job postings or referrals
 - Sports events or tryouts
 - Volunteer opportunities
+- Congratulations or achievement announcements
+- Award or recognition emails
 
 Be strict. When in doubt, mark as NOT important.
 
@@ -108,7 +111,8 @@ def parse_classification(text):
 
 def send_notification(subject, sender, category, reason):
     sender_name = sender.split('<')[0].strip() or sender
-    requests.post(
+    print(f"📡 Sending to NTFY topic: {NTFY_TOPIC}", flush=True)
+    resp = requests.post(
         NTFY_TOPIC,
         data=subject.encode('utf-8'),
         headers={
@@ -117,10 +121,8 @@ def send_notification(subject, sender, category, reason):
             "Tags": "email,bell"
         }
     )
+    print(f"📡 NTFY response status: {resp.status_code}", flush=True)
     print(f"🔔 Notified: {subject}", flush=True)
-
-# Add this at the top level (outside any function, after app = Flask(__name__))
-processed_ids = set()
 
 @app.route('/webhook', methods=['POST'])
 def gmail_webhook():
