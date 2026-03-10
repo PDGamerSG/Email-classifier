@@ -3,25 +3,21 @@ import json
 import tempfile
 import base64
 import requests
-# NEW
+import traceback
 from groq import Groq
-
 from flask import Flask, request
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-import traceback
 
 # ---- CONFIG ----
-NTFY_TOPIC     = os.environ.get("NTFY_TOPIC", "https://ntfy.sh/john-college-mail")
+NTFY_TOPIC   = os.environ.get("NTFY_TOPIC", "https://ntfy.sh/gmail_alerts")
+groq_client  = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+app          = Flask(__name__)
 # ----------------
-
-groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-app = Flask(__name__)
 
 def get_gmail_service():
     token_data = os.environ.get("TOKEN_JSON")
-
     if token_data:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             f.write(token_data)
@@ -30,24 +26,19 @@ def get_gmail_service():
         os.unlink(tmp_path)
     else:
         creds = Credentials.from_authorized_user_file('token.json')
-
     if creds.expired and creds.refresh_token:
         creds.refresh(Request())
-
     return build('gmail', 'v1', credentials=creds)
 
 def get_email_content(service, msg_id):
     msg = service.users().messages().get(
         userId='me', id=msg_id, format='full'
     ).execute()
-
     headers = {h['name']: h['value'] for h in msg['payload']['headers']}
     subject = headers.get('Subject', 'No Subject')
     sender  = headers.get('From', 'Unknown')
-
-    body = ""
+    body    = ""
     payload = msg['payload']
-
     if 'parts' in payload:
         for part in payload['parts']:
             if part['mimeType'] == 'text/plain' and 'data' in part.get('body', {}):
@@ -55,7 +46,6 @@ def get_email_content(service, msg_id):
                 break
     elif 'body' in payload and 'data' in payload['body']:
         body = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8', errors='ignore')[:600]
-
     return subject, sender, body, msg.get('labelIds', [])
 
 def classify_email(subject, sender, body):
@@ -127,9 +117,8 @@ def send_notification(subject, sender, category, reason):
             "Tags": "email,bell"
         }
     )
-    print(f"🔔 Notified: {subject}")
+    print(f"🔔 Notified: {subject}", flush=True)
 
-@app.route('/webhook', methods=['POST'])
 @app.route('/webhook', methods=['POST'])
 def gmail_webhook():
     print("🔥 Webhook hit!", flush=True)
@@ -138,16 +127,15 @@ def gmail_webhook():
         if not envelope or 'message' not in envelope:
             return 'bad request', 400
 
-        # Decode the Pub/Sub message to get historyId
-        import base64 as b64
-        data = json.loads(b64.b64decode(envelope['message']['data']).decode())
+        # Decode Pub/Sub message to get historyId
+        data       = json.loads(base64.b64decode(envelope['message']['data']).decode())
         history_id = data.get('historyId')
         print(f"📨 HistoryId: {history_id}", flush=True)
 
         service = get_gmail_service()
         print("✅ Gmail service created", flush=True)
 
-        # Get only NEW messages using history
+        # Get only NEW messages using historyId
         try:
             history = service.users().history().list(
                 userId='me',
@@ -155,7 +143,8 @@ def gmail_webhook():
                 historyTypes=['messageAdded'],
                 labelId='INBOX'
             ).execute()
-        except Exception:
+        except Exception as e:
+            print(f"⚠️ History fetch failed: {e}", flush=True)
             return 'ok', 200
 
         messages_added = []
@@ -164,13 +153,14 @@ def gmail_webhook():
                 messages_added.append(msg['message']['id'])
 
         if not messages_added:
-            print("📭 No new messages", flush=True)
+            print("📭 No new messages in this history", flush=True)
             return 'ok', 200
 
         for msg_id in messages_added:
             subject, sender, body, labels = get_email_content(service, msg_id)
 
             if 'UNREAD' not in labels:
+                print(f"⏭️ Skipping already-read email: {subject}", flush=True)
                 continue
 
             print(f"\n📧 New email: {subject} | From: {sender}", flush=True)
