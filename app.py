@@ -59,16 +59,44 @@ def get_email_content(service, msg_id):
     return subject, sender, body, msg.get('labelIds', [])
 
 def classify_email(subject, sender, body):
-    prompt = f"""You are an email classifier for a college student.
-Decide if this email needs their immediate attention.
+    prompt = f"""You are an email classifier for a college student in India.
 
 From: {sender}
 Subject: {subject}
 Body preview: {body}
 
-Classify it. Reply ONLY in this exact format, nothing else:
+Your job is to decide if this email truly needs the student's IMMEDIATE attention.
+
+Mark IMPORTANT: yes ONLY for:
+- Exam schedules, timetable changes, hall ticket releases
+- Attendance warnings or shortage notices
+- Fee payment deadlines or dues
+- Assignment or project submission deadlines
+- Academic results or grade releases
+- Mess menu changes or hostel notices
+- Urgent college administration notices
+- Course registration or add/drop deadlines
+- Scholarship deadlines or disbursements
+- Online course deadlines (NPTEL, Coursera etc.)
+- Calendar or schedule changes affecting academics
+
+Mark IMPORTANT: no for EVERYTHING else including:
+- Internship or placement opportunities
+- Hackathons or coding competitions
+- Events, fests, cultural programs
+- Webinars or guest lectures
+- Research publications or paper calls
+- Club or society announcements
+- Newsletters or college magazines
+- Job postings or referrals
+- Sports events or tryouts
+- Volunteer opportunities
+
+Be strict. When in doubt, mark as NOT important.
+
+Reply ONLY in this exact format, nothing else:
 IMPORTANT: yes/no
-CATEGORY: Academic / Deadline / Admin / Event / Newsletter / Spam / Social
+CATEGORY: Exam / Attendance / Fee / Deadline / Mess / Admin / Course / Scholarship / Other
 REASON: one sentence max"""
 
     response = groq_client.chat.completions.create(
