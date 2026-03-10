@@ -8,6 +8,7 @@ from flask import Flask, request
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
+import traceback
 
 # ---- CONFIG ----
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_KEY_HERE")
@@ -140,6 +141,7 @@ def gmail_webhook():
 
     except Exception as e:
         print(f"❌ Error: {e}")
+        print(traceback.format_exc())
 
     return 'ok', 200
 
