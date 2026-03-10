@@ -103,8 +103,10 @@ def send_notification(subject, sender, category, reason):
 
 @app.route('/webhook', methods=['POST'])
 def gmail_webhook():
+    print("🔥 Webhook hit!", flush=True)
     try:
         envelope = request.get_json()
+        print(f"📨 Envelope received: {envelope}", flush=True)
         if not envelope or 'message' not in envelope:
             return 'bad request', 400
 
