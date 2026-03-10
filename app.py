@@ -114,8 +114,9 @@ def gmail_webhook():
 
         service = get_gmail_service()                    # ← keep only this one
         results = service.users().messages().list(
-            userId='me', q='is:unread', maxResults=3
+            userId='me', q='is:unread in:inbox', maxResults=3
         ).execute()
+        print(f"📬 Unread messages found: {results}", flush=True)  # add this
 
         messages = results.get('messages', [])
         if not messages:
