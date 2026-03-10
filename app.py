@@ -130,38 +130,52 @@ def send_notification(subject, sender, category, reason):
     print(f"🔔 Notified: {subject}")
 
 @app.route('/webhook', methods=['POST'])
+@app.route('/webhook', methods=['POST'])
 def gmail_webhook():
     print("🔥 Webhook hit!", flush=True)
     try:
         envelope = request.get_json()
-        print(f"📨 Envelope received: {envelope}", flush=True)
-        service = get_gmail_service()                    # ← DELETE this line
-        print("✅ Gmail service created", flush=True)
         if not envelope or 'message' not in envelope:
             return 'bad request', 400
 
-        service = get_gmail_service()                    # ← keep only this one
-        results = service.users().messages().list(
-            userId='me', q='is:unread in:inbox', maxResults=3
-        ).execute()
-        print(f"📬 Unread messages found: {results}", flush=True)  # add this
+        # Decode the Pub/Sub message to get historyId
+        import base64 as b64
+        data = json.loads(b64.b64decode(envelope['message']['data']).decode())
+        history_id = data.get('historyId')
+        print(f"📨 HistoryId: {history_id}", flush=True)
 
-        messages = results.get('messages', [])
-        if not messages:
+        service = get_gmail_service()
+        print("✅ Gmail service created", flush=True)
+
+        # Get only NEW messages using history
+        try:
+            history = service.users().history().list(
+                userId='me',
+                startHistoryId=history_id,
+                historyTypes=['messageAdded'],
+                labelId='INBOX'
+            ).execute()
+        except Exception:
             return 'ok', 200
 
-        for msg_meta in messages:
-            msg_id = msg_meta['id']
+        messages_added = []
+        for record in history.get('history', []):
+            for msg in record.get('messagesAdded', []):
+                messages_added.append(msg['message']['id'])
+
+        if not messages_added:
+            print("📭 No new messages", flush=True)
+            return 'ok', 200
+
+        for msg_id in messages_added:
             subject, sender, body, labels = get_email_content(service, msg_id)
 
             if 'UNREAD' not in labels:
                 continue
 
-            print(f"\n📧 New email: {subject} | From: {sender}")
-
+            print(f"\n📧 New email: {subject} | From: {sender}", flush=True)
             classification = classify_email(subject, sender, body)
-            print(f"🤖 Gemini says:\n{classification}")
-
+            print(f"🤖 Groq says:\n{classification}", flush=True)
             parsed = parse_classification(classification)
 
             if parsed["important"]:
@@ -172,11 +186,11 @@ def gmail_webhook():
                     id=msg_id,
                     body={'removeLabelIds': ['UNREAD']}
                 ).execute()
-                print(f"✅ Silently marked read: [{parsed['category']}] {subject}")
+                print(f"✅ Silently marked read: [{parsed['category']}] {subject}", flush=True)
 
     except Exception as e:
-        print(f"❌ Error: {e}")
-        print(traceback.format_exc())
+        print(f"❌ Error: {e}", flush=True)
+        print(traceback.format_exc(), flush=True)
 
     return 'ok', 200
 
