@@ -4,7 +4,8 @@ import tempfile
 import base64
 import requests
 # NEW
-from google import genai
+from groq import Groq
+
 from flask import Flask, request
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
@@ -12,11 +13,10 @@ from googleapiclient.discovery import build
 import traceback
 
 # ---- CONFIG ----
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_KEY_HERE")
 NTFY_TOPIC     = os.environ.get("NTFY_TOPIC", "https://ntfy.sh/john-college-mail")
 # ----------------
 
-client = genai.Client(api_key=GEMINI_API_KEY)
+groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 app = Flask(__name__)
 
 def get_gmail_service():
@@ -71,11 +71,11 @@ IMPORTANT: yes/no
 CATEGORY: Academic / Deadline / Admin / Event / Newsletter / Spam / Social
 REASON: one sentence max"""
 
-    response = client.models.generate_content(
-        model="gemini-2.0-flash-lite",
-        contents=prompt
+    response = groq_client.chat.completions.create(
+        model="llama3-8b-8192",
+        messages=[{"role": "user", "content": prompt}]
     )
-    return response.text.strip()
+    return response.choices[0].message.content.strip()
 
 def parse_classification(text):
     result = {"important": False, "category": "General", "reason": ""}
