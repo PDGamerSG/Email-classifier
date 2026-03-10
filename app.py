@@ -11,7 +11,7 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
 # ---- CONFIG ----
-NTFY_TOPIC  = "https://ntfy.sh/gmail_alerts"  # hardcoded
+NTFY_TOPIC = "https://ntfy.sh/pallabemailbot"  # hardcoded
 groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 app         = Flask(__name__)
 processed_ids = set()
