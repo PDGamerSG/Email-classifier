@@ -129,7 +129,7 @@ def gmail_webhook():
 
         # Decode Pub/Sub message to get historyId
         data       = json.loads(base64.b64decode(envelope['message']['data']).decode())
-        history_id = data.get('historyId')
+        history_id = str(int(data.get('historyId')) - 1)
         print(f"📨 HistoryId: {history_id}", flush=True)
 
         service = get_gmail_service()
