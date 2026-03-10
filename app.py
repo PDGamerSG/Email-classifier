@@ -119,6 +119,9 @@ def send_notification(subject, sender, category, reason):
     )
     print(f"🔔 Notified: {subject}", flush=True)
 
+# Add this at the top level (outside any function, after app = Flask(__name__))
+processed_ids = set()
+
 @app.route('/webhook', methods=['POST'])
 def gmail_webhook():
     print("🔥 Webhook hit!", flush=True)
@@ -127,42 +130,32 @@ def gmail_webhook():
         if not envelope or 'message' not in envelope:
             return 'bad request', 400
 
-        # Decode Pub/Sub message to get historyId
-        data       = json.loads(base64.b64decode(envelope['message']['data']).decode())
-        history_id = str(int(data.get('historyId')) - 1)
-        print(f"📨 HistoryId: {history_id}", flush=True)
-
         service = get_gmail_service()
         print("✅ Gmail service created", flush=True)
 
-        # Get only NEW messages using historyId
-        try:
-            history = service.users().history().list(
-                userId='me',
-                startHistoryId=history_id,
-                historyTypes=['messageAdded'],
-                labelId='INBOX'
-            ).execute()
-        except Exception as e:
-            print(f"⚠️ History fetch failed: {e}", flush=True)
+        results = service.users().messages().list(
+            userId='me', q='is:unread in:inbox', maxResults=5
+        ).execute()
+
+        messages = results.get('messages', [])
+        print(f"📬 Unread count: {len(messages)}", flush=True)
+
+        if not messages:
             return 'ok', 200
 
-        messages_added = []
-        for record in history.get('history', []):
-            for msg in record.get('messagesAdded', []):
-                messages_added.append(msg['message']['id'])
+        for msg_meta in messages:
+            msg_id = msg_meta['id']
 
-        if not messages_added:
-            print("📭 No new messages in this history", flush=True)
-            return 'ok', 200
+            if msg_id in processed_ids:
+                print(f"⏭️ Already processed: {msg_id}", flush=True)
+                continue
 
-        for msg_id in messages_added:
             subject, sender, body, labels = get_email_content(service, msg_id)
 
             if 'UNREAD' not in labels:
-                print(f"⏭️ Skipping already-read email: {subject}", flush=True)
                 continue
 
+            processed_ids.add(msg_id)
             print(f"\n📧 New email: {subject} | From: {sender}", flush=True)
             classification = classify_email(subject, sender, body)
             print(f"🤖 Groq says:\n{classification}", flush=True)
