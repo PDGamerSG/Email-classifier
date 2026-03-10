@@ -1,6 +1,3 @@
-# app.py
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_KEY_HERE")
-NTFY_TOPIC     = os.environ.get("NTFY_TOPIC", "https://ntfy.sh/john-college-mail")
 import os
 import json
 import tempfile
@@ -11,22 +8,31 @@ from flask import Flask, request
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-app = Flask(__name__)
 
 # ---- CONFIG ----
-GEMINI_API_KEY = "YOUR_GEMINI_KEY_HERE"
-NTFY_TOPIC     = "https://ntfy.sh/john-college-mail"  # your topic
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_KEY_HERE")
+NTFY_TOPIC     = os.environ.get("NTFY_TOPIC", "https://ntfy.sh/john-college-mail")
 # ----------------
 
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel("gemini-1.5-flash")
+app = Flask(__name__)
 
 def get_gmail_service():
-    creds = Credentials.from_authorized_user_file('token.json')
+    token_data = os.environ.get("TOKEN_JSON")
+
+    if token_data:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            f.write(token_data)
+            tmp_path = f.name
+        creds = Credentials.from_authorized_user_file(tmp_path)
+        os.unlink(tmp_path)
+    else:
+        creds = Credentials.from_authorized_user_file('token.json')
+
     if creds.expired and creds.refresh_token:
         creds.refresh(Request())
-        with open('token.json', 'w') as f:
-            f.write(creds.to_json())
+
     return build('gmail', 'v1', credentials=creds)
 
 def get_email_content(service, msg_id):
@@ -41,7 +47,6 @@ def get_email_content(service, msg_id):
     body = ""
     payload = msg['payload']
 
-    # Handle simple and multipart emails
     if 'parts' in payload:
         for part in payload['parts']:
             if part['mimeType'] == 'text/plain' and 'data' in part.get('body', {}):
@@ -80,9 +85,7 @@ def parse_classification(text):
     return result
 
 def send_notification(subject, sender, category, reason):
-    # Clean sender name
     sender_name = sender.split('<')[0].strip() or sender
-
     requests.post(
         NTFY_TOPIC,
         data=subject.encode('utf-8'),
@@ -103,7 +106,6 @@ def gmail_webhook():
 
         service = get_gmail_service()
 
-        # Get latest unread emails (check last 3 to not miss any)
         results = service.users().messages().list(
             userId='me', q='is:unread', maxResults=3
         ).execute()
@@ -116,7 +118,6 @@ def gmail_webhook():
             msg_id = msg_meta['id']
             subject, sender, body, labels = get_email_content(service, msg_id)
 
-            # Skip if already processed (no UNREAD label)
             if 'UNREAD' not in labels:
                 continue
 
@@ -130,7 +131,6 @@ def gmail_webhook():
             if parsed["important"]:
                 send_notification(subject, sender, parsed["category"], parsed["reason"])
             else:
-                # Mark as read silently
                 service.users().messages().modify(
                     userId='me',
                     id=msg_id,
