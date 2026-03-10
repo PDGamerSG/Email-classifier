@@ -1,13 +1,16 @@
 # app.py
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_KEY_HERE")
 NTFY_TOPIC     = os.environ.get("NTFY_TOPIC", "https://ntfy.sh/john-college-mail")
-from flask import Flask, request
+import os
+import json
+import tempfile
+import base64
+import requests
 import google.generativeai as genai
+from flask import Flask, request
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-import requests, base64, json, os
-
 app = Flask(__name__)
 
 # ---- CONFIG ----
